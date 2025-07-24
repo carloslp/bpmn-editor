@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import BpmnModeler from 'bpmn-js/dist/bpmn-modeler.development.js';
 import axios from 'axios';
-import { FileText, Download, Upload, Loader2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { FileText, Download, Upload, Loader2, AlertCircle, CheckCircle, RefreshCw, Paperclip, Mail } from 'lucide-react';
 
 // Asumiendo que los estilos de bpmn-js están importados en tu archivo principal, ej:
 // import 'bpmn-js/dist/assets/diagram-js.css';
@@ -11,6 +11,8 @@ const BpmnEditor: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [bpmnModeler, setBpmnModeler] = useState<any>(null);
   const [prompt, setPrompt] = useState('');
+  const [email, setEmail] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [currentXml, setCurrentXml] = useState('');
@@ -46,7 +48,7 @@ const BpmnEditor: React.FC = () => {
         }
     } catch (error: any) {
         setStatus({ type: 'error', message: `Error al cargar la lista de diagramas: ${error.message}` });
-        setDiagrams([]); // Limpiar diagramas en caso de error
+        setDiagrams([]);
     } finally {
         setIsTableLoading(false);
     }
@@ -65,8 +67,6 @@ const BpmnEditor: React.FC = () => {
 
       modeler.importXML(defaultBpmn).then(() => {
         setCurrentXml(defaultBpmn);
-        setStatus({ type: 'success', message: 'Editor BPMN inicializado correctamente' });
-        setTimeout(() => setStatus({ type: null, message: '' }), 3000);
       }).catch((err: any) => {
         setStatus({ type: 'error', message: 'Error al inicializar el editor BPMN' });
         console.error('Error loading BPMN diagram:', err);
@@ -81,26 +81,38 @@ const BpmnEditor: React.FC = () => {
   }, []);
 
   const loadDataFromApi = async () => {
-    if (!bpmnModeler || !prompt.trim()) {
-      setStatus({ type: 'error', message: 'Por favor, escribe un prompt antes de generar el diagrama' });
+    if (!prompt.trim() && !pdfFile) {
+      setStatus({ type: 'error', message: 'Por favor, escribe un prompt o carga un archivo PDF.' });
+      return;
+    }
+     if (!email.trim()) {
+      setStatus({ type: 'error', message: 'Por favor, ingresa un correo electrónico.' });
       return;
     }
 
     setIsLoading(true);
     setStatus({ type: null, message: '' });
 
+    const formData = new FormData();
+    formData.append('prompt', prompt);
+    formData.append('email', email);
+    if (pdfFile) {
+        formData.append('file', pdfFile);
+    }
+
     try {
-      const response = await axios.post('https://n8n.paas.oracle-mty1.juanlopez.dev/webhook/45e467f9-acfe-4a19-ae92-6aebc46437d0', {
-        prompt: prompt.trim()
-      }, {
+      const response = await axios.post('https://n8n.paas.oracle-mty1.juanlopez.dev/webhook/45e467f9-acfe-4a19-ae92-6aebc46437d0', formData, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'multipart/form-data'
         }
       });
 
       if (response.status === 200) {
-        setStatus({ type: 'success', message: 'Solicitud enviada exitosamente (estado 200). No se recibieron datos para actualizar el diagrama.' });
+        setStatus({ type: 'success', message: 'Solicitud enviada exitosamente. El diagrama se procesará.' });
         setTimeout(() => setStatus({ type: null, message: '' }), 5000);
+        setPrompt('');
+        setEmail('');
+        setPdfFile(null);
       } else {
         throw new Error(`La API respondió con el estado ${response.status}`);
       }
@@ -194,7 +206,7 @@ const BpmnEditor: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBpmnUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !bpmnModeler) return;
 
@@ -214,6 +226,13 @@ const BpmnEditor: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const handlePdfUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+        setPdfFile(file);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -226,7 +245,7 @@ const BpmnEditor: React.FC = () => {
             <label className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg cursor-pointer transition-colors">
               <Upload className="h-4 w-4" />
               <span className="text-sm font-medium">Subir BPMN</span>
-              <input type="file" accept=".bpmn,.xml" onChange={handleFileUpload} className="hidden" />
+              <input type="file" accept=".bpmn,.xml" onChange={handleBpmnUpload} className="hidden" />
             </label>
             <button onClick={downloadXml} className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors">
               <Download className="h-4 w-4" />
@@ -253,10 +272,20 @@ const BpmnEditor: React.FC = () => {
         <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Área de Prompts</h3>
-            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Escribe aquí tu prompt para generar un diagrama BPMN..." className="w-full h-24 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <div className="space-y-4">
+                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Escribe aquí tu prompt para generar un diagrama BPMN..." className="w-full h-24 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu.correo@ejemplo.com" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <div>
+                    <label className="flex items-center justify-center w-full space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                        <Paperclip className="h-4 w-4" />
+                        <span className="text-sm font-medium">{pdfFile ? pdfFile.name : 'Cargar PDF'}</span>
+                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" />
+                    </label>
+                </div>
+            </div>
           </div>
           
-          <div className="p-6 border-b border-gray-200 flex-grow flex flex-col overflow-hidden">
+          <div className="p-6 flex-grow flex flex-col overflow-hidden">
             <div className="flex justify-between items-center mb-3">
                 <h4 className="text-base font-semibold text-gray-800">Diagramas Guardados</h4>
                 <button onClick={fetchDiagrams} disabled={isTableLoading} className="p-1 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition-colors">
