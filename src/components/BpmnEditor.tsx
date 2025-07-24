@@ -297,6 +297,8 @@ const BpmnEditor: React.FC = () => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
                             <th scope="col" className="px-4 py-2">ID</th>
+                            <th scope="col" className="px-4 py-2 text-center">correo</th>
+                            <th scope="col" className="px-4 py-2 text-center">fecha</th>
                             <th scope="col" className="px-4 py-2 text-center">Acción</th>
                         </tr>
                     </thead>
