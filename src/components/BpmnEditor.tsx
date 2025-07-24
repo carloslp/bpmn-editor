@@ -111,6 +111,68 @@ const BpmnEditor: React.FC = () => {
       setStatus({ type: 'error', message: 'Error al descargar el diagrama' });
       console.error('Error downloading XML:', error);
     }
+
+      try {
+    // 1. Exportar el diagrama como SVG
+    const { svg } = await bpmnModeler.saveSVG();
+
+    // 2. Crear una URL a partir del contenido SVG
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    // 3. Dibujar el SVG en un canvas para convertirlo a PNG
+    const img = new Image();
+    img.onload = () => {
+      // Crear un elemento canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      // --- INICIO DE LA MODIFICACIÓN ---
+      // Rellenar el fondo del canvas con color blanco
+      // Por defecto, el canvas es transparente, lo que resulta en un PNG con fondo transparente.
+      ctx.fillStyle = '#FFFFFF'; // Código hexadecimal para el color blanco
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // --- FIN DE LA MODIFICACIÓN ---
+
+      // Dibujar la imagen del SVG sobre el fondo blanco
+      ctx.drawImage(img, 0, 0);
+
+      // Obtener los datos del canvas como PNG
+      const pngUrl = canvas.toDataURL('image/png');
+
+      // 4. Crear y simular el clic en el enlace de descarga
+      const a = document.createElement('a');
+      a.href = pngUrl;
+      a.download = 'diagrama.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Limpiar las URLs de los objetos creados
+      URL.revokeObjectURL(pngUrl);
+      URL.revokeObjectURL(svgUrl);
+
+      setStatus({ type: 'success', message: 'Diagrama PNG descargado exitosamente' });
+      setTimeout(() => setStatus({ type: null, message: '' }), 3000);
+    };
+
+    // Asignar la URL del SVG a la fuente de la imagen para cargarla
+    img.src = svgUrl;
+
+    img.onerror = (error) => {
+        console.error('Error al cargar SVG en la imagen:', error);
+        setStatus({ type: 'error', message: 'No se pudo procesar la imagen del diagrama' });
+        URL.revokeObjectURL(svgUrl); // Limpieza en caso de error
+    };
+
+  } catch (error) {
+    setStatus({ type: 'error', message: 'Error al descargar el diagrama PNG' });
+    console.error('Error al descargar PNG:', error);
+  }
+
+    
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
