@@ -70,7 +70,7 @@ const BpmnEditor: React.FC = () => {
         }
       });
       
-      if (response.data && Array.isArray(response.data) && response.data.length > 0 && response.data[0].output && response.data[0].output.xml) {
+      if (response.data && Array.isArray(response.data) && response.data.length > 0 && response.data[0].output && response.data[0].extractedXml) {
         const xmlContent = response.data[0].output.xml;
         await bpmnModeler.importXML(xmlContent);
         setCurrentXml(xmlContent);
