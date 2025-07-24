@@ -273,13 +273,13 @@ const BpmnEditor: React.FC = () => {
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Área de Prompts</h3>
             <div className="space-y-4">
-                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Escribe aquí tu prompt para generar un diagrama BPMN..." className="w-full h-24 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu.correo@ejemplo.com" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Escribe aquí tu prompt para generar un diagrama BPMN..." className="w-full h-24 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" required/>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu.correo@coppel.com" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required/>
                 <div>
                     <label className="flex items-center justify-center w-full space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg cursor-pointer transition-colors">
                         <Paperclip className="h-4 w-4" />
                         <span className="text-sm font-medium">{pdfFile ? pdfFile.name : 'Cargar PDF'}</span>
-                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" />
+                        <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" requiered/>
                     </label>
                 </div>
             </div>
