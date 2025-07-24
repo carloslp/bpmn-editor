@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Fix BPMN.js hover and selection styles */
+.djs-element:hover .djs-outline {
+  stroke: #52a2ff !important;
+  stroke-width: 2px !important;
+}
+
+.djs-element.hover .djs-outline {
+  stroke: #52a2ff !important;
+  stroke-width: 2px !important;
+}
+
+.djs-element.selected .djs-outline {
+  stroke: #ff6b35 !important;
+  stroke-width: 2px !important;
+}
+
+/* Fix for visual artifacts on hover */
+.djs-overlay {
+  pointer-events: none;
+}
+
+.djs-element {
+  cursor: pointer;
+}
+
+/* Ensure proper rendering of BPMN elements */
+.bjs-container svg {
+  overflow: visible;
+}
+
+.bjs-container .viewport {
+  overflow: visible;
+}
+
+/* Fix for text rendering issues */
+.djs-element text {
+  pointer-events: none;
+  user-select: none;
+}
