@@ -307,6 +307,8 @@ const BpmnEditor: React.FC = () => {
                             diagrams.map((diagram) => (
                                 <tr key={diagram._id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram._id}</td>
+                                    <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram.correo}</td>
+                                  <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram.fecha}</td>
                                     <td className="px-4 py-2 text-center">
                                         <button onClick={() => loadDiagramFromTable(diagram.extractedXml)} className="font-medium text-blue-600 hover:underline disabled:text-gray-400" disabled={!diagram.extractedXml}>
                                             Cargar
