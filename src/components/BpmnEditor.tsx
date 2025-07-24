@@ -101,7 +101,7 @@ const BpmnEditor: React.FC = () => {
     }
 
     try {
-      const response = await axios.post('https://n8n.paas.oracle-mty1.juanlopez.dev/webhook-test/45e467f9-acfe-4a19-ae92-6aebc46437d0', formData, {
+      const response = await axios.post('https://n8n.paas.oracle-mty1.juanlopez.dev/webhook/45e467f9-acfe-4a19-ae92-6aebc46437d0', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
