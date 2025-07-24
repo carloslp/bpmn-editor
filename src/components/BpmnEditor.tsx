@@ -276,10 +276,10 @@ const BpmnEditor: React.FC = () => {
                             <tr><td colSpan={2} className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin inline-block"/></td></tr>
                         ) : diagrams.length > 0 ? (
                             diagrams.map((diagram) => (
-                                <tr key={diagram.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram.id}</td>
+                                <tr key={diagram._id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram._id}</td>
                                     <td className="px-4 py-2 text-center">
-                                        <button onClick={() => loadDiagramFromTable(diagram.json.xml)} className="font-medium text-blue-600 hover:underline disabled:text-gray-400" disabled={!diagram.json.xml}>
+                                        <button onClick={() => loadDiagramFromTable(diagram.extractedXml)} className="font-medium text-blue-600 hover:underline disabled:text-gray-400" disabled={!diagram.extractedXml}>
                                             Cargar
                                         </button>
                                     </td>
