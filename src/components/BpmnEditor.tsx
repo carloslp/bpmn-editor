@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import BpmnModeler from 'bpmn-js/dist/bpmn-modeler.development.js';
 import axios from 'axios';
-import { FileText, Download, Upload, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { FileText, Download, Upload, Loader2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+
+// Asumiendo que los estilos de bpmn-js están importados en tu archivo principal, ej:
+// import 'bpmn-js/dist/assets/diagram-js.css';
+// import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
 
 const BpmnEditor: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -10,8 +14,10 @@ const BpmnEditor: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [currentXml, setCurrentXml] = useState('');
+  const [diagrams, setDiagrams] = useState<any[]>([]);
+  const [isTableLoading, setIsTableLoading] = useState(false);
 
-  // Default BPMN diagram
+  // Diagrama BPMN por defecto para inicializar el editor
   const defaultBpmn = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn2:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="sample-diagram" targetNamespace="http://bpmn.io/schema/bpmn" xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL BPMN20.xsd">
   <bpmn2:process id="Process_1" isExecutable="false">
@@ -26,6 +32,27 @@ const BpmnEditor: React.FC = () => {
   </bpmndi:BPMNDiagram>
 </bpmn2:definitions>`;
 
+  const fetchDiagrams = async () => {
+    setIsTableLoading(true);
+    setStatus({ type: null, message: '' });
+    try {
+        const response = await axios.get('https://n8n.paas.oracle-mty1.juanlopez.dev/webhook/cbff4cc2-f861-438b-b7dc-f8e6aafadea2');
+        if (response.data && Array.isArray(response.data)) {
+            setDiagrams(response.data);
+            setStatus({ type: 'success', message: 'Lista de diagramas actualizada.' });
+            setTimeout(() => setStatus({ type: null, message: '' }), 3000);
+        } else {
+             throw new Error('La respuesta de la API no contiene el formato esperado (array)');
+        }
+    } catch (error: any) {
+        setStatus({ type: 'error', message: `Error al cargar la lista de diagramas: ${error.message}` });
+        setDiagrams([]); // Limpiar diagramas en caso de error
+    } finally {
+        setIsTableLoading(false);
+    }
+  };
+
+
   useEffect(() => {
     if (containerRef.current) {
       const modeler = new BpmnModeler({
@@ -35,8 +62,7 @@ const BpmnEditor: React.FC = () => {
       });
 
       setBpmnModeler(modeler);
-      
-      // Load default diagram
+
       modeler.importXML(defaultBpmn).then(() => {
         setCurrentXml(defaultBpmn);
         setStatus({ type: 'success', message: 'Editor BPMN inicializado correctamente' });
@@ -45,6 +71,8 @@ const BpmnEditor: React.FC = () => {
         setStatus({ type: 'error', message: 'Error al inicializar el editor BPMN' });
         console.error('Error loading BPMN diagram:', err);
       });
+
+      fetchDiagrams();
 
       return () => {
         modeler.destroy();
@@ -69,24 +97,37 @@ const BpmnEditor: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
-      if (response.data && Array.isArray(response.data) && response.data.length > 0 && response.data[0].extractedXml) {
-        const xmlContent = response.data[0].extractedXml;
-        await bpmnModeler.importXML(xmlContent);
-        setCurrentXml(xmlContent);
-        setStatus({ type: 'success', message: 'Diagrama BPMN generado exitosamente desde el prompt' });
-        setTimeout(() => setStatus({ type: null, message: '' }), 3000);
+
+      if (response.status === 200) {
+        setStatus({ type: 'success', message: 'Solicitud enviada exitosamente (estado 200). No se recibieron datos para actualizar el diagrama.' });
+        setTimeout(() => setStatus({ type: null, message: '' }), 5000);
       } else {
-        throw new Error('La respuesta de la API no contiene el formato esperado');
+        throw new Error(`La API respondió con el estado ${response.status}`);
       }
     } catch (error: any) {
-      setStatus({ 
-        type: 'error', 
-        message: `Error al generar diagrama: ${error.response?.data?.message || error.message || 'Error desconocido'}` 
+      setStatus({
+        type: 'error',
+        message: `Error al enviar la solicitud: ${error.response?.data?.message || error.message || 'Error desconocido'}`
       });
-      console.error('Error generating diagram from API:', error);
+      console.error('Error sending request to API:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadDiagramFromTable = async (xml: string) => {
+    if (!bpmnModeler || !xml) {
+        setStatus({ type: 'error', message: 'No hay contenido XML para cargar.' });
+        return;
+    };
+    try {
+        await bpmnModeler.importXML(xml);
+        setCurrentXml(xml);
+        setStatus({ type: 'success', message: 'Diagrama cargado en el editor.' });
+        setTimeout(() => setStatus({ type: null, message: '' }), 3000);
+    } catch (error) {
+        setStatus({ type: 'error', message: 'Error al cargar el diagrama seleccionado.' });
+        console.error('Error loading selected diagram:', error);
     }
   };
 
@@ -95,84 +136,62 @@ const BpmnEditor: React.FC = () => {
 
     try {
       const { xml } = await bpmnModeler.saveXML({ format: true });
-      const blob = new Blob([xml], { type: 'application/xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'diagram.bpmn';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      setStatus({ type: 'success', message: 'Diagrama descargado exitosamente' });
+      const blobXml = new Blob([xml], { type: 'application/xml' });
+      const urlXml = URL.createObjectURL(blobXml);
+      const aXml = document.createElement('a');
+      aXml.href = urlXml;
+      aXml.download = 'diagrama.bpmn';
+      document.body.appendChild(aXml);
+      aXml.click();
+      document.body.removeChild(aXml);
+      URL.revokeObjectURL(urlXml);
+      setStatus({ type: 'success', message: 'Diagrama BPMN descargado exitosamente' });
       setTimeout(() => setStatus({ type: null, message: '' }), 3000);
     } catch (error) {
-      setStatus({ type: 'error', message: 'Error al descargar el diagrama' });
+      setStatus({ type: 'error', message: 'Error al descargar el diagrama BPMN' });
       console.error('Error downloading XML:', error);
     }
 
-      try {
-    // 1. Exportar el diagrama como SVG
-    const { svg } = await bpmnModeler.saveSVG();
+    try {
+      const { svg } = await bpmnModeler.saveSVG();
+      const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
 
-    // 2. Crear una URL a partir del contenido SVG
-    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            const pngUrl = canvas.toDataURL('image/png');
+            const aPng = document.createElement('a');
+            aPng.href = pngUrl;
+            aPng.download = 'diagrama.png';
+            document.body.appendChild(aPng);
+            aPng.click();
+            document.body.removeChild(aPng);
+            URL.revokeObjectURL(pngUrl);
+        }
+        URL.revokeObjectURL(svgUrl);
+        setStatus({ type: 'success', message: 'Diagrama PNG descargado exitosamente' });
+        setTimeout(() => setStatus({ type: null, message: '' }), 3000);
+      };
 
-    // 3. Dibujar el SVG en un canvas para convertirlo a PNG
-    const img = new Image();
-    img.onload = () => {
-      // Crear un elemento canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-
-      // --- INICIO DE LA MODIFICACIÓN ---
-      // Rellenar el fondo del canvas con color blanco
-      // Por defecto, el canvas es transparente, lo que resulta en un PNG con fondo transparente.
-      ctx.fillStyle = '#FFFFFF'; // Código hexadecimal para el color blanco
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // --- FIN DE LA MODIFICACIÓN ---
-
-      // Dibujar la imagen del SVG sobre el fondo blanco
-      ctx.drawImage(img, 0, 0);
-
-      // Obtener los datos del canvas como PNG
-      const pngUrl = canvas.toDataURL('image/png');
-
-      // 4. Crear y simular el clic en el enlace de descarga
-      const a = document.createElement('a');
-      a.href = pngUrl;
-      a.download = 'diagrama.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Limpiar las URLs de los objetos creados
-      URL.revokeObjectURL(pngUrl);
-      URL.revokeObjectURL(svgUrl);
-
-      setStatus({ type: 'success', message: 'Diagrama PNG descargado exitosamente' });
-      setTimeout(() => setStatus({ type: null, message: '' }), 3000);
-    };
-
-    // Asignar la URL del SVG a la fuente de la imagen para cargarla
-    img.src = svgUrl;
-
-    img.onerror = (error) => {
+      img.onerror = (error) => {
         console.error('Error al cargar SVG en la imagen:', error);
         setStatus({ type: 'error', message: 'No se pudo procesar la imagen del diagrama' });
-        URL.revokeObjectURL(svgUrl); // Limpieza en caso de error
-    };
+        URL.revokeObjectURL(svgUrl);
+      };
 
-  } catch (error) {
-    setStatus({ type: 'error', message: 'Error al descargar el diagrama PNG' });
-    console.error('Error al descargar PNG:', error);
-  }
-
-    
+      img.src = svgUrl;
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Error al descargar el diagrama PNG' });
+      console.error('Error downloading PNG:', error);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,130 +216,92 @@ const BpmnEditor: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <FileText className="h-8 w-8 text-blue-600" />
             <h1 className="text-2xl font-bold text-gray-900">Editor BPMN</h1>
           </div>
-          
           <div className="flex items-center space-x-3">
             <label className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg cursor-pointer transition-colors">
               <Upload className="h-4 w-4" />
               <span className="text-sm font-medium">Subir BPMN</span>
-              <input
-                type="file"
-                accept=".bpmn,.xml"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+              <input type="file" accept=".bpmn,.xml" onChange={handleFileUpload} className="hidden" />
             </label>
-            
-            <button
-              onClick={downloadXml}
-              className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
+            <button onClick={downloadXml} className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors">
               <Download className="h-4 w-4" />
               <span className="text-sm font-medium">Descargar</span>
             </button>
-            
-            <button
-              onClick={loadDataFromApi}
-              disabled={isLoading}
-              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
-              <span className="text-sm font-medium">
-                {isLoading ? 'Generando...' : 'Generar Diagrama'}
-              </span>
+            <button onClick={loadDataFromApi} disabled={isLoading} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg transition-colors">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              <span className="text-sm font-medium">{isLoading ? 'Enviando...' : 'Enviar Prompt'}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Status Message */}
       {status.type && (
         <div className="px-6 py-2">
-          <div className={`flex items-center space-x-2 p-3 rounded-lg ${
-            status.type === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            {status.type === 'success' ? (
-              <CheckCircle className="h-5 w-5" />
-            ) : (
-              <AlertCircle className="h-5 w-5" />
-            )}
+          <div className={`flex items-center space-x-2 p-3 rounded-lg ${ status.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800' }`}>
+            {status.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
             <span className="text-sm font-medium">{status.message}</span>
           </div>
         </div>
       )}
 
-      <div className="flex h-full">
-        {/* Sidebar - Prompt Area */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <div className="flex" style={{ height: 'calc(100vh - 73px)'}}>
+        <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">
-              Área de Prompts
-            </h3>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Escribe aquí tu prompt para generar un diagrama BPMN. Ejemplo: 'Crear un proceso de aprobación de solicitudes con 3 pasos'"
-              className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Área de Prompts</h3>
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Escribe aquí tu prompt para generar un diagrama BPMN..." className="w-full h-24 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           </div>
           
-          <div className="p-6 flex-1">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">
-              Información de la API
-            </h4>
-            <div className="space-y-3 text-sm text-gray-600">
-              <div>
-                <span className="font-medium">Estado:</span> 
-                <span className={`ml-2 ${currentXml ? 'text-green-600' : 'text-gray-400'}`}>
-                  {currentXml ? 'Diagrama cargado' : 'Sin diagrama'}
-                </span>
-              </div>
-              <div>
-                <span className="font-medium">Método:</span>
-                <span className="ml-2 text-blue-600 font-mono">POST</span>
-              </div>
-              <div>
-                <span className="font-medium">Endpoint:</span>
-                <div className="mt-1 p-2 bg-gray-50 rounded text-xs break-all">
-                  https://n8n.paas.oracle-mty1.juanlopez.dev/webhook-test/45e467f9-acfe-4a19-ae92-6aebc46437d0
-                </div>
-              </div>
-              <div>
-                <span className="font-medium">Payload:</span>
-                <div className="mt-1 p-2 bg-gray-50 rounded text-xs">
-                  {`{ "prompt": "${prompt || 'tu prompt aquí'}" }`}
-                </div>
-              </div>
+          <div className="p-6 border-b border-gray-200 flex-grow flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center mb-3">
+                <h4 className="text-base font-semibold text-gray-800">Diagramas Guardados</h4>
+                <button onClick={fetchDiagrams} disabled={isTableLoading} className="p-1 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition-colors">
+                    {isTableLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </button>
+            </div>
+            <div className="flex-grow overflow-y-auto border rounded-lg">
+                <table className="w-full text-sm text-left text-gray-600">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                        <tr>
+                            <th scope="col" className="px-4 py-2">ID</th>
+                            <th scope="col" className="px-4 py-2 text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {isTableLoading ? (
+                            <tr><td colSpan={2} className="text-center p-4"><Loader2 className="h-6 w-6 animate-spin inline-block"/></td></tr>
+                        ) : diagrams.length > 0 ? (
+                            diagrams.map((diagram) => (
+                                <tr key={diagram.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-4 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{diagram.id}</td>
+                                    <td className="px-4 py-2 text-center">
+                                        <button onClick={() => loadDiagramFromTable(diagram.json.xml)} className="font-medium text-blue-600 hover:underline disabled:text-gray-400" disabled={!diagram.json.xml}>
+                                            Cargar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr><td colSpan={2} className="text-center p-4 text-gray-500">No se encontraron diagramas.</td></tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
           </div>
+
         </div>
 
-        {/* Main Editor Area */}
         <div className="flex-1 p-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Visor/Editor BPMN
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900">Visor/Editor BPMN</h3>
             </div>
-            <div className="p-4 h-full">
-              <div 
-                ref={containerRef} 
-                className="w-full h-full border border-gray-300 rounded-lg"
-                style={{ minHeight: '500px' }}
-              />
+            <div className="p-4 flex-grow">
+              <div ref={containerRef} className="w-full h-full border border-gray-300 rounded-lg" style={{ minHeight: '500px' }} />
             </div>
           </div>
         </div>
