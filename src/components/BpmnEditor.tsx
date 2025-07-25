@@ -334,7 +334,7 @@ const BpmnEditor: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900">Visor/Editor BPMN</h3>
             </div>
             <div className="p-4 flex-grow">
-              <div ref={containerRef} className="w-full h-full border border-gray-300 rounded-lg" style={{ minHeight: '500px' }} />
+              <div ref={containerRef} className="w-full h-full border border-gray-300 rounded-lg" style={{ minHeight: '100%' }} />
             </div>
           </div>
         </div>
